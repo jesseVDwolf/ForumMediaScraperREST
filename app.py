@@ -106,8 +106,8 @@ except ServerSelectionTimeoutError as serverTimeout:
 def query():
     status = 200
     body = {'success': True, 'documents': []}
-    limit = request.args.get('limit')
-    offset = request.args.get('offset')
+    limit = request.args.get('limit') if request.args.get('limit') else 5
+    offset = request.args.get('offset') if request.args.get('offset') else 0
     try:
         # create mongodb aggregation pipeline
         pipeline = [
@@ -142,13 +142,13 @@ def query():
 def config():
     status = 200
     response_body = {'success': True, 'config': {}}
-    request_body = request.get_json()
 
     if request.method == 'GET':
         with open('config.json') as f:
             response_body['config'] = json.loads(f.read())
 
     if request.method == 'PUT':
+        request_body = request.get_json()
         with open('config.json', 'w') as f:
             f.write(json.dumps(request_body))
             set_env(conf=request_body)
