@@ -18,7 +18,7 @@ from pymongo.errors import (
     AutoReconnect
 )
 from apscheduler.schedulers.background import BackgroundScheduler
-from ForumMediaScraper.ForumMediaScraper import ForumMediaScraper
+from ForumMediaScraper import ForumMediaScraper
 
 app = Flask(__name__)
 
