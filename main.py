@@ -66,7 +66,7 @@ def object_to_string(doc: dict) -> dict:
 
 try:
     # read config file
-    with open('config.json') as f:
+    with open('{}/config.json'.format(os.path.dirname(os.path.abspath(__file__)))) as f:
         config = json.loads(f.read())
 
     # setup environment for ForumMediaScraper
@@ -144,12 +144,12 @@ def config():
     response_body = {'success': True, 'config': {}}
 
     if request.method == 'GET':
-        with open('config.json') as f:
+        with open('{}/config.json'.format(os.path.dirname(os.path.abspath(__file__)))) as f:
             response_body['config'] = json.loads(f.read())
 
     if request.method == 'PUT':
         request_body = request.get_json()
-        with open('config.json', 'w') as f:
+        with open('{}/config.json'.format(os.path.dirname(os.path.abspath(__file__))), 'w') as f:
             f.write(json.dumps(request_body))
             set_env(conf=request_body)
             response_body['config'] = request_body
