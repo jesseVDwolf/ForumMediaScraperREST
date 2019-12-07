@@ -1,0 +1,1 @@
+from ForumMediaScraperREST import app
