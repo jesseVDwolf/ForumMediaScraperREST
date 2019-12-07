@@ -63,7 +63,7 @@ class FlaskController:
         self.validate_controller()
 
         # set gecko driver environment variable for the ForumMediaScraper
-        os.environ['GECKO_DRIVER_PATH'] = r'{}\ForumMediaScraper\ForumMediaScraper\bin\geckodriver.exe'.format(
+        os.environ['GECKO_DRIVER_PATH'] = r'{}\..\ForumMediaScraper\ForumMediaScraper\bin\geckodriver.exe'.format(
             os.path.dirname(os.path.abspath(__file__))
         )
 

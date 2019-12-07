@@ -7,7 +7,7 @@ from flask import (
     Response
 )
 from pymongo.errors import AutoReconnect
-from FlaskController import FlaskController, MediaScraperStillRunning
+from .FlaskController import FlaskController, MediaScraperStillRunning
 
 app = Flask(__name__)
 flask_controller = FlaskController(app=app)
