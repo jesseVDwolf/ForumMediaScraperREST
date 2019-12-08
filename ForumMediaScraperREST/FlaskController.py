@@ -16,13 +16,20 @@ from pymongo.errors import ServerSelectionTimeoutError
 from apscheduler.job import Job
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from ForumMediaScraper import ForumMediaScraper
+from ForumMediaScraper import ForumMediaScraper, ScrapeConditionsNotMetException
 
 
 class InvalidControllerException(Exception):
     """
     Raised during validation of the flask controller if
     one of the checks fails
+    """
+    pass
+
+
+class InvalidConfigException(Exception):
+    """
+    Raised when validation of config fails
     """
     pass
 
@@ -42,29 +49,18 @@ class FlaskController:
     _SCRAPER_SHUTDOWN_BUFFER = 20
     _SCRAPER_WEBDRIVER_EXECUTABLE_PATH = 'geckodriver'
 
-    _MONGO_SERVER_TIMEOUT = 1           # seconds. Can be so little since connection is localhost
+    _MONGO_SERVER_TIMEOUT = 1  # seconds. Can be so little since connection is localhost
 
-    _WEBSERVICE_SCRAPER_RUN_INTERVAL = 120
-    _WEBSERVICE_SCRAPER_MAX_SCROLL_SECONDS = 60
-    _WEBSERVICE_OPTIONAL_SETTINGS = {
-        'SCRAPER_MAX_SCROLL_SECONDS': int,      # has a default defined in _WEBSERVICE_SCRAPER_MAX_SCROLL_SECONDS
-        'SCRAPER_CREATE_SERVICE_LOG': int,
-        'SCRAPER_HEADLESS_MODE': int,
-        'SCRAPER_RUN_INTERVAL': int,            # has a default defined in _WEBSERVICE_SCRAPER_RUN_INTERVAL
-        'MONGO_INITDB_ROOT_USERNAME': str,
-        'MONGO_INITDB_ROOT_PASSWORD': str,
-        'MONGO_INITDB_HOST': str,
-        'MONGO_INITDB_PORT': int,
-    }
-    _WEBSERVICE_BASE_CONFIG = {
-      "MONGO_INITDB_ROOT_USERNAME": "admin",
-      "MONGO_INITDB_ROOT_PASSWORD": "Noobmaster69",
-      "MONGO_INITDB_HOST": "127.0.0.1",
-      "MONGO_INITDB_PORT": 27017,
-      "ForumMediaScraper": {
-        "SCRAPER_RUN_INTERVAL": 120,
-        "SCRAPER_HEADLESS_MODE": 1
-      }
+    # configuration options with default data type and value
+    _WEBSERVICE_CONFIG_SETTINGS = {
+        'SCRAPER_MAX_SCROLL_SECONDS': (int, 60),
+        'SCRAPER_CREATE_SERVICE_LOG': (int, 0),
+        'SCRAPER_HEADLESS_MODE': (int, 1),
+        'SCRAPER_RUN_INTERVAL': (int, 120),
+        'MONGO_INITDB_ROOT_USERNAME': (str, "admin"),
+        'MONGO_INITDB_ROOT_PASSWORD': (str, "Noobmaster69"),
+        'MONGO_INITDB_HOST': (str, "127.0.0.1"),
+        'MONGO_INITDB_PORT': (int, 27017),
     }
 
     def __init__(self, app: Flask):
@@ -81,19 +77,18 @@ class FlaskController:
         self.forum_scraper_schedule = Job
         atexit.register(lambda: self.scheduler.shutdown())
 
-        try:
-            # create default config with already existing environment variables
-            with open('config.json', mode='w+') as f:
-                config = self._update_config(FlaskController._WEBSERVICE_BASE_CONFIG)
-                f.write(json.dumps(config))
+        # create default config with already existing environment variables
+        with open('config.json', mode='w+') as f:
+            config = {}
+            for k, v in FlaskController._WEBSERVICE_CONFIG_SETTINGS.items():
+                if os.getenv(k):
+                    config[k] = os.getenv(k)
+                else:
+                    config[k] = v[1]
+            f.write(json.dumps(config))
 
-            # validate necessary settings and services
-            self.validate_controller()
-        except IOError as err:
-            self._app.logger.error('Failed to update config file %s' % str(err))
-            sys.exit(1)
-        except InvalidControllerException:
-            self._app.logger.error('Failed to validate flask controller, make sure your configuration is correct')
+        # validate necessary settings and services
+        self.validate_controller()
 
     def _start_scraper(self):
         """
@@ -101,49 +96,35 @@ class FlaskController:
         on the interval specified in the config.json file -> SCRAPER_RUN_INTERVAL
         """
         try:
-            # check
-            self._mongo_client.server_info()
-            service_config = self.get_config()
-            scraper_config = {k: v for (k, v) in service_config.items() if k != 'SCRAPER_RUN_INTERVAL'}
-            scraper_config.update()
-            scraper = ForumMediaScraper(config={})
+            self.validate_controller()
+            with open('config.json') as f:
+                config = {k: v for (k, v) in json.loads(f.read()).items() if k != 'SCRAPER_RUN_INTERVAL'}
+                for k, v in config.items():
+                    if k in ['SCRAPER_HEADLESS_MODE', 'SCRAPER_CREATE_SERVICE_LOG']:
+                        config[k] = bool(v)
+            config.update({'WEBDRIVER_EXECUTABLE_PATH': FlaskController._SCRAPER_WEBDRIVER_EXECUTABLE_PATH})
+            scraper = ForumMediaScraper(config=config)
             scraper.run()
         except ServerSelectionTimeoutError as serverTimeout:
-            self._app.logger.error('Could not connect to mongodb instance before starting the ForumMediaScraper: {err}'.format(err=serverTimeout))
+            self._app.logger.error('Could not connect to mongodb instance before starting the ForumMediaScraper: %s' % str(serverTimeout))
+        except ScrapeConditionsNotMetException as scrapeError:
+            self._app.logger.error('Error during validation of the scrape conditions: %s' % str(scrapeError))
 
-    def _update_config(self, d: dict):
-        """
-        recursive function that updates a nested dict using
-        the environment variables present in os.environ
-        :param d:
-        :return:
-        """
-        for k, v in d.items():
-            if isinstance(v, dict):
-                d[k] = self._update_config(d[k])
-            else:
-                if os.getenv(k):
-                    d[k] = os.getenv(k)
-        return d
-
-    def _validate_config(self, d: dict):
+    @staticmethod
+    def _validate_config(d: dict):
         """
         Check if the configuration specified for the webservice is
         given in the correct format and given options are valid options
         :param d:
         :return:
         """
-        if isinstance(d, dict):
-            for k, v in d.items():
-                if isinstance(v, dict):
-                    self._validate_config(d[k])
-                    continue
-                if k not in FlaskController._WEBSERVICE_OPTIONAL_SETTINGS.keys():
-                    raise NameError('No such option exists: %s' % str(k))
-                if not isinstance(v, FlaskController._WEBSERVICE_OPTIONAL_SETTINGS.get(k)):
-                    raise TypeError('Option data type does not match expected type: %s' % str(v))
-        else:
-            raise TypeError('Use a dict to update the scraper its configuration')
+        for k, v in d.items():
+            if isinstance(v, dict):
+                raise InvalidConfigException('Config can not have nested options')
+            if k not in FlaskController._WEBSERVICE_CONFIG_SETTINGS.keys():
+                raise InvalidConfigException('Invalid config option %s' % str(k))
+            if not isinstance(v, FlaskController._WEBSERVICE_CONFIG_SETTINGS.get(k)[0]):
+                raise InvalidConfigException('Config option %s is not the correct datatype' % str(k))
 
     def get_config(self):
         try:
@@ -168,7 +149,7 @@ class FlaskController:
         except IOError as err:
             self._app.logger.error('Failed to update config file: %s' % str(err))
             return {}
-        except (ValueError, NameError, TypeError) as invalidConfig:
+        except InvalidConfigException as invalidConfig:
             self._app.logger.error('Failed to update config file: %s' % str(invalidConfig))
             return {}
 
@@ -223,18 +204,18 @@ class FlaskController:
             self.mongo_gridfs = gridfs.GridFS(database=self.mongo_database)
 
             # get run_interval and max_scroll_settings loaded from config or stick to default
-            run_interval = FlaskController._WEBSERVICE_SCRAPER_RUN_INTERVAL
+            run_interval = FlaskController._WEBSERVICE_CONFIG_SETTINGS.get('SCRAPER_RUN_INTERVAL')[1]
             if os.environ.get('SCRAPER_RUN_INTERVAL'):
                 run_interval = config.get('SCRAPER_RUN_INTERVAL')
 
-            max_scroll_seconds = FlaskController._WEBSERVICE_SCRAPER_MAX_SCROLL_SECONDS
+            max_scroll_seconds = FlaskController._WEBSERVICE_CONFIG_SETTINGS.get('SCRAPER_MAX_SCROLL_SECONDS')[1]
             if os.environ.get('MAX_SCROLL_SECONDS'):
                 max_scroll_seconds = config.get('MAX_SCROLL_SECONDS')
 
             # make sure run_interval is correct
             if run_interval <= (FlaskController._SCRAPER_SHUTDOWN_BUFFER + max_scroll_seconds):
                 self._app.logger.warning('Incorrect run interval in config file, using default')
-                run_interval = FlaskController._WEBSERVICE_SCRAPER_RUN_INTERVAL
+                run_interval = FlaskController._WEBSERVICE_CONFIG_SETTINGS.get('SCRAPER_RUN_INTERVAL')[1]
 
             # add job if not already created
             if isinstance(self.forum_scraper_schedule, type):
@@ -267,10 +248,13 @@ class FlaskController:
                     )
 
                 # reschedule job
-                self._app.logger.info('Rescheduled the ForumMediaScraper job to run at {} second intervals'.format(run_interval))
+                self._app.logger.info(
+                    'Rescheduled the ForumMediaScraper job to run at {} second intervals'.format(run_interval))
                 self.forum_scraper_schedule.reschedule(trigger='interval', seconds=run_interval)
 
         except ServerSelectionTimeoutError as serverTimeout:
-            self._app.logger.warning('Could not create connection to mongoDB server, is MONGO_INITDB_HOST set up correctly?: %s' % str(serverTimeout))
+            self._app.logger.warning(
+                'Could not create connection to mongoDB server, is MONGO_INITDB_HOST set up correctly?: %s' % str(
+                    serverTimeout))
             raise InvalidControllerException
 
