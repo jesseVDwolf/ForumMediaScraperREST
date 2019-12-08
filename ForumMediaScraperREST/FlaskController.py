@@ -77,18 +77,24 @@ class FlaskController:
         self.forum_scraper_schedule = Job
         atexit.register(lambda: self.scheduler.shutdown())
 
-        # create default config with already existing environment variables
-        with open('config.json', mode='w+') as f:
-            config = {}
-            for k, v in FlaskController._WEBSERVICE_CONFIG_SETTINGS.items():
-                if os.getenv(k):
-                    config[k] = os.getenv(k)
-                else:
-                    config[k] = v[1]
-            f.write(json.dumps(config))
+        try:
+            # create default config with already existing environment variables
+            with open('config.json', mode='w+') as f:
+                config = {}
+                for k, v in FlaskController._WEBSERVICE_CONFIG_SETTINGS.items():
+                    if os.getenv(k):
+                        config[k] = os.getenv(k)
+                    else:
+                        config[k] = v[1]
+                f.write(json.dumps(config))
 
-        # validate necessary settings and services
-        self.validate_controller()
+            # validate necessary settings and services
+            self.validate_controller()
+        except IOError as io:
+            self._app.logger.error('Failed to create config file %s' % str(io))
+            sys.exit(1)
+        except ServerSelectionTimeoutError as timeoutError:
+            self._app.logger.error('Could not connect to mongoDB server, is MONGO_INITDB_HOST set up correctly?: %s' % str(timeoutError))
 
     def _start_scraper(self):
         """
