@@ -83,7 +83,7 @@ class FlaskController:
 
         try:
             # create default config with already existing environment variables
-            with open('%s\\config.json' % os.getcwd(), mode='w+') as f:
+            with open('config.json', mode='w+') as f:
                 config = self._update_config(FlaskController._WEBSERVICE_BASE_CONFIG)
                 f.write(json.dumps(config))
 
@@ -148,7 +148,7 @@ class FlaskController:
     def get_config(self):
         try:
             if os.access('config.json', os.R_OK):
-                with open('%s\\config.json' % os.getcwd()) as f:
+                with open('config.json') as f:
                     return json.loads(f.read())
             else:
                 raise IOError('Access check on config file failed')
@@ -159,7 +159,7 @@ class FlaskController:
     def put_config(self, config: dict):
         try:
             self._validate_config(config)
-            if os.access('%s\\config.json' % os.getcwd(), os.W_OK):
+            if os.access('config.json', os.W_OK):
                 with open('config.json', 'w') as f:
                     f.write(json.dumps(config))
             else:
@@ -192,7 +192,7 @@ class FlaskController:
     def validate_controller(self):
         try:
             # read config file
-            with open('%s\\config.json' % os.getcwd()) as f:
+            with open('config.json') as f:
                 config = json.loads(f.read())
 
             #  create mongo client to interact with local mongoDB instance
