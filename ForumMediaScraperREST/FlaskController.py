@@ -47,7 +47,6 @@ class FlaskController:
 
     """
     _SCRAPER_SHUTDOWN_BUFFER = 20
-    _SCRAPER_WEBDRIVER_EXECUTABLE_PATH = 'geckodriver'
 
     _MONGO_SERVER_TIMEOUT = 1  # seconds. Can be so little since connection is localhost
 
@@ -61,6 +60,7 @@ class FlaskController:
         'MONGO_INITDB_ROOT_PASSWORD': (str, "Noobmaster69"),
         'MONGO_INITDB_HOST': (str, "127.0.0.1"),
         'MONGO_INITDB_PORT': (int, 27017),
+        'WEBDRIVER_EXECUTABLE_PATH': (str, 'geckodriver'),
     }
 
     def __init__(self, app: Flask):
@@ -108,7 +108,6 @@ class FlaskController:
                 for k, v in config.items():
                     if k in ['SCRAPER_HEADLESS_MODE', 'SCRAPER_CREATE_SERVICE_LOG']:
                         config[k] = bool(v)
-            config.update({'WEBDRIVER_EXECUTABLE_PATH': FlaskController._SCRAPER_WEBDRIVER_EXECUTABLE_PATH})
             scraper = ForumMediaScraper(config=config)
             scraper.run()
         except ServerSelectionTimeoutError as serverTimeout:
