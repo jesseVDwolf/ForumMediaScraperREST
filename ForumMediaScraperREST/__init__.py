@@ -7,7 +7,11 @@ from flask import (
     Response
 )
 from pymongo.errors import AutoReconnect
-from .FlaskController import FlaskController, MediaScraperStillRunning
+from .FlaskController import (
+    FlaskController,
+    MediaScraperStillRunningException,
+    InvalidControllerException
+)
 
 app = Flask(__name__)
 flask_controller = FlaskController(app=app)
@@ -35,7 +39,7 @@ def query():
             }
         ]
         # build response json body
-        for run in flask_controller.database['Runs'].aggregate(pipeline=pipeline):
+        for run in flask_controller.mongo_database['Runs'].aggregate(pipeline=pipeline):
             for post in run['Posts']:
                 gridfs_file = flask_controller.mongo_gridfs.get(post['MediaId'])
                 post['MediaData'] = base64.b64encode(gridfs_file.read(size=-1)).decode('utf-8')
@@ -56,22 +60,39 @@ def config():
     response_body = {'success': True, 'config': {}}
     try:
         if request.method == 'GET':
-            with open('{}/config.json'.format(os.path.dirname(os.path.abspath(__file__)))) as f:
-                response_body['config'] = json.loads(f.read())
+            response_body['config'] = flask_controller.get_config()
+
         if request.method == 'PUT':
             request_body = request.get_json()
-            with open('{}/config.json'.format(os.path.dirname(os.path.abspath(__file__))), 'w') as f:
-                f.write(json.dumps(request_body))
+            response_body['config'] = flask_controller.put_config(config=request_body)
             flask_controller.validate_controller()
-            response_body['config'] = request_body
-    except FileNotFoundError:
-        raise RuntimeError('No config file found on the server')
+
     except json.decoder.JSONDecodeError as decodeError:
-        response_body.update({'success': False, 'error': {'type': 'json.decoder.JSONDecodeError', 'message': decodeError}})
+        response_body.update({
+            'success': False,
+            'error': {
+                'type': 'json.decoder.JSONDecodeError',
+                'message': decodeError
+            }
+        })
         status = 400
-    except MediaScraperStillRunning as runningJob:
-        response_body.update({'success': False, 'error': {'type': 'MediaScraperStilRunning', 'message': runningJob.args[0]}})
+    except MediaScraperStillRunningException as runningJob:
+        response_body.update({
+            'success': False,
+            'error': {
+                'type': 'MediaScraperStilRunning',
+                'message': runningJob.args[0]
+            }
+        })
         status = 409
+    except InvalidControllerException:
+        response_body.update({
+            'success': False,
+            'error': {
+                'type': 'InvalidControllerException',
+                'message': 'Error validating the controller config, check webserver logs for further information'
+            }
+        })
     return Response(response=json.dumps(response_body), status=status, content_type='application/json')
 
 

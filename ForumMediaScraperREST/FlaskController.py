@@ -4,7 +4,6 @@ import pytz
 import json
 import gridfs
 import atexit
-import urllib.parse
 from datetime import datetime, timedelta
 
 from flask import Flask
@@ -20,7 +19,15 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from ForumMediaScraper import ForumMediaScraper
 
 
-class MediaScraperStillRunning(Exception):
+class InvalidControllerException(Exception):
+    """
+    Raised during validation of the flask controller if
+    one of the checks fails
+    """
+    pass
+
+
+class MediaScraperStillRunningException(Exception):
     """
     raised if a new configuration is send to the service
     but the media scraper is still running
@@ -30,42 +37,56 @@ class MediaScraperStillRunning(Exception):
 
 class FlaskController:
     """
-    DEFAULT_MAX_SCROLL_SECONDS: specified in ForumMediaScraper
-    DEFAULT_SCRAPER_RUN_INTERVAL: seconds, can not be smaller than max_scroll_seconds + SCRAPER_START_SHUTDOWN_BUFFER
-    SCRAPER_START_SHUTDOWN_BUFFER: seconds it takes for scraper to startup and shutdown
+
     """
+    _SCRAPER_SHUTDOWN_BUFFER = 20
+    _SCRAPER_WEBDRIVER_EXECUTABLE_PATH = 'geckodriver'
+
+    _MONGO_SERVER_TIMEOUT = 1           # seconds. Can be so little since connection is localhost
+
+    _WEBSERVICE_SCRAPER_RUN_INTERVAL = 120
+    _WEBSERVICE_SCRAPER_MAX_SCROLL_SECONDS = 60
+    _WEBSERVICE_OPTIONAL_SETTINGS = {
+        'SCRAPER_MAX_SCROLL_SECONDS': int,      # has a default defined in _WEBSERVICE_SCRAPER_MAX_SCROLL_SECONDS
+        'SCRAPER_CREATE_SERVICE_LOG': int,
+        'SCRAPER_HEADLESS_MODE': int,
+        'SCRAPER_RUN_INTERVAL': int,            # has a default defined in _WEBSERVICE_SCRAPER_RUN_INTERVAL
+        'MONGO_INITDB_ROOT_USERNAME': str,
+        'MONGO_INITDB_ROOT_PASSWORD': str,
+        'MONGO_INITDB_HOST': str,
+        'MONGO_INITDB_PORT': int,
+    }
 
     def __init__(self, app: Flask):
         self._app = app
-        self.DEFAULT_MAX_SCROLL_SECONDS = 60
-        self.DEFAULT_SCRAPER_RUN_INTERVAL = 120
-        self.SCRAPER_START_SHUTDOWN_BUFFER = 20
 
         # database settings
-        self.mongo_client = MongoClient
+        self._mongo_client = MongoClient
         self.mongo_gridfs = gridfs.GridFS
-        self.database = Database
+        self.mongo_database = Database
 
         # scheduler config
         self.scheduler = BackgroundScheduler()
+        self.scheduler.start()
         self.forum_scraper_schedule = Job
         atexit.register(lambda: self.scheduler.shutdown())
 
-        # overwrite config with already existing environment variables
-        with open('{}/config.json'.format(os.path.dirname(os.path.abspath(__file__))), mode='r+') as f:
-            config = json.loads(f.read())
-            config = self._update_config(config)
-            f.seek(0)
-            f.truncate()
-            f.write(json.dumps(config))
+        try:
+            # overwrite default config with already existing environment variables
+            with open('config.json', mode='r+') as f:
+                config = json.loads(f.read())
+                config = self._update_config(config)
+                f.seek(0)
+                f.truncate()
+                f.write(json.dumps(config))
 
-        # validate necessary settings and services
-        self.validate_controller()
-
-        # set gecko driver environment variable for the ForumMediaScraper
-        os.environ['GECKO_DRIVER_PATH'] = r'{}\..\ForumMediaScraper\ForumMediaScraper\bin\geckodriver.exe'.format(
-            os.path.dirname(os.path.abspath(__file__))
-        )
+            # validate necessary settings and services
+            self.validate_controller()
+        except IOError as err:
+            self._app.logger.error('Failed to update config file %s' % str(err))
+            sys.exit(1)
+        except InvalidControllerException:
+            self._app.logger.error('Failed to validate flask controller, make sure your configuration is correct')
 
     def _start_scraper(self):
         """
@@ -73,24 +94,15 @@ class FlaskController:
         on the interval specified in the config.json file -> SCRAPER_RUN_INTERVAL
         """
         try:
-            self.mongo_client.server_info()
-            media_scraper = ForumMediaScraper()
-            media_scraper.start_scraper()
+            # check
+            self._mongo_client.server_info()
+            service_config = self.get_config()
+            scraper_config = {k: v for (k, v) in service_config.items() if k != 'SCRAPER_RUN_INTERVAL'}
+            scraper_config.update()
+            scraper = ForumMediaScraper(config={})
+            scraper.run()
         except ServerSelectionTimeoutError as serverTimeout:
             self._app.logger.error('Could not connect to mongodb instance before starting the ForumMediaScraper: {err}'.format(err=serverTimeout))
-
-    def set_env(self, conf: dict):
-        """
-        recursive function that adds all key value pairs in the dictionary
-        as environment variables using os.environ
-        :param conf:
-        :return:
-        """
-        for key, val in conf.items():
-            if isinstance(conf[key], dict):
-                self.set_env(conf[key])
-            else:
-                os.environ[key] = str(val)
 
     def _update_config(self, d: dict):
         """
@@ -106,6 +118,52 @@ class FlaskController:
                 if os.getenv(k):
                     d[k] = os.getenv(k)
         return d
+
+    def _validate_config(self, d: dict):
+        """
+        Check if the configuration specified for the webservice is
+        given in the correct format and given options are valid options
+        :param d:
+        :return:
+        """
+        if isinstance(d, dict):
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    self._validate_config(d[k])
+                    continue
+                if k not in FlaskController._WEBSERVICE_OPTIONAL_SETTINGS.keys():
+                    raise NameError('No such option exists: %s' % str(k))
+                if not isinstance(v, FlaskController._WEBSERVICE_OPTIONAL_SETTINGS.get(k)):
+                    raise TypeError('Option data type does not match expected type: %s' % str(v))
+        else:
+            raise TypeError('Use a dict to update the scraper its configuration')
+
+    def get_config(self):
+        try:
+            if os.access('config.json', os.R_OK):
+                with open('config.json') as f:
+                    return json.loads(f.read())
+            else:
+                raise IOError('Access check on config file failed')
+        except IOError as err:
+            self._app.logger.error('Failed to update config file: %s' % str(err))
+            return {}
+
+    def put_config(self, config: dict):
+        try:
+            self._validate_config(config)
+            if os.access('config.json', os.W_OK):
+                with open('config.json', 'w') as f:
+                    f.write(json.dumps(config))
+            else:
+                raise IOError('Access check on config file failed')
+            return config
+        except IOError as err:
+            self._app.logger.error('Failed to update config file: %s' % str(err))
+            return {}
+        except (ValueError, NameError, TypeError) as invalidConfig:
+            self._app.logger.error('Failed to update config file: %s' % str(invalidConfig))
+            return {}
 
     def object_to_string(self, doc: dict) -> dict:
         """
@@ -127,46 +185,53 @@ class FlaskController:
     def validate_controller(self):
         try:
             # read config file
-            with open('{}/config.json'.format(os.path.dirname(os.path.abspath(__file__)))) as f:
+            with open('config.json') as f:
                 config = json.loads(f.read())
 
-            # update environment for ForumMediaScraper
-            self.set_env(conf=config)
+            #  create mongo client to interact with local mongoDB instance
+            connection_args = {
+                'host': None,
+                'serverSelectionTimeoutMS': FlaskController._MONGO_SERVER_TIMEOUT
+            }
 
-            # create mongodb client instance
-            self.mongo_client = MongoClient('mongodb://{usr}:{pwd}@{host}'.format(
-                usr=urllib.parse.quote_plus(os.environ.get('MONGO_INITDB_ROOT_USERNAME')),
-                pwd=urllib.parse.quote_plus(os.environ.get('MONGO_INITDB_ROOT_PASSWORD')),
-                host=urllib.parse.quote_plus(os.environ.get('MONGO_INITDB_HOST'))),
-                serverSelectionTimeoutMS=os.environ.get('MAX_SERVER_SELECTION_DELAY')
-            )
+            if config.get('MONGO_INITDB_HOST'):
+                connection_args['host'] = 'mongodb://%s' % str(config.get('MONGO_INITDB_HOST'))
+
+            if config.get('MONGO_INITDB_ROOT_USERNAME'):
+                if not config.get('MONGO_INITDB_HOST'):
+                    raise InvalidControllerException('Specify mongo host if you use username and password auth')
+
+                connection_args['host'] = connection_args.get('host')[:10] + '{usr}:{pwd}@'.format(
+                    usr=config.get('MONGO_INITDB_ROOT_USERNAME'),
+                    pwd=config.get('MONGO_INITDB_ROOT_PASSWORD')
+                ) + connection_args.get('host')[10:]
+
+            if config.get('MONGO_INITDB_PORT'):
+                connection_args.update({'port': config.get('MONGO_INITDB_PORT')})
+            self._mongo_client = MongoClient(**connection_args)
 
             # force a connection on a request to check if server is online
-            self.mongo_client.server_info()
-            self.database = self.mongo_client['9GagMedia']
-            self.mongo_gridfs = gridfs.GridFS(database=self.database)
-
-            # start scheduler if not already running
-            if not self.scheduler.running:
-                self.scheduler.start()
+            self._mongo_client.server_info()
+            self.mongo_database = self._mongo_client['9GagMedia']
+            self.mongo_gridfs = gridfs.GridFS(database=self.mongo_database)
 
             # get run_interval and max_scroll_settings loaded from config or stick to default
-            run_interval = self.DEFAULT_SCRAPER_RUN_INTERVAL
+            run_interval = FlaskController._WEBSERVICE_SCRAPER_RUN_INTERVAL
             if os.environ.get('SCRAPER_RUN_INTERVAL'):
-                run_interval = int(os.environ.get('SCRAPER_RUN_INTERVAL'))
+                run_interval = config.get('SCRAPER_RUN_INTERVAL')
 
-            max_scroll_seconds = self.DEFAULT_MAX_SCROLL_SECONDS
+            max_scroll_seconds = FlaskController._WEBSERVICE_SCRAPER_MAX_SCROLL_SECONDS
             if os.environ.get('MAX_SCROLL_SECONDS'):
-                max_scroll_seconds = int(os.environ.get('MAX_SCROLL_SECONDS'))
+                max_scroll_seconds = config.get('MAX_SCROLL_SECONDS')
 
             # make sure run_interval is correct
-            if run_interval <= (self.SCRAPER_START_SHUTDOWN_BUFFER + max_scroll_seconds):
+            if run_interval <= (FlaskController._SCRAPER_SHUTDOWN_BUFFER + max_scroll_seconds):
                 self._app.logger.warning('Incorrect run interval in config file, using default')
-                run_interval = self.DEFAULT_SCRAPER_RUN_INTERVAL
+                run_interval = FlaskController._WEBSERVICE_SCRAPER_RUN_INTERVAL
 
             # add job if not already created
             if isinstance(self.forum_scraper_schedule, type):
-                self._app.logger.info('Creating ')
+                self._app.logger.info('Creating schedule job for ForumMediaScraper')
                 self.forum_scraper_schedule = self.scheduler.add_job(
                     func=self._start_scraper,
                     trigger="interval",
@@ -183,14 +248,14 @@ class FlaskController:
 
                 # get important timestamps for is_running check using Europe/Berlin timezone
                 timezone = pytz.timezone('Europe/Berlin')
-                execution_duration = timedelta(seconds=(max_scroll_seconds + self.SCRAPER_START_SHUTDOWN_BUFFER))
+                execution_duration = timedelta(seconds=(max_scroll_seconds + FlaskController._SCRAPER_SHUTDOWN_BUFFER))
                 next_run_time = self.forum_scraper_schedule.next_run_time - timedelta(seconds=2)  # small buffer
                 previous_run_time = next_run_time - timedelta(seconds=run_interval)
 
                 # check if request comes in in a time frame where we're sure no job is running
                 if not ((previous_run_time + execution_duration) <= timezone.localize(datetime.now()) <= next_run_time):
                     self._app.logger.warning('New configuration was send but MediaScraper is still running')
-                    raise MediaScraperStillRunning('Retry at {}'.format(
+                    raise MediaScraperStillRunningException('Retry at {}'.format(
                         timezone.localize((datetime.utcnow() + execution_duration)).strftime("%Y-%m-%d %H:%M:%S"))
                     )
 
@@ -198,11 +263,7 @@ class FlaskController:
                 self._app.logger.info('Rescheduled the ForumMediaScraper job to run at {} second intervals'.format(run_interval))
                 self.forum_scraper_schedule.reschedule(trigger='interval', seconds=run_interval)
 
-        except FileNotFoundError:
-            self._app.logger.error('Could not find a config.json file, can not start the server')
-            sys.exit(1)
-        except json.decoder.JSONDecodeError as decodeError:
-            self._app.logger.error('Could not parse the config.json file, is it correct json: {err}'.format(err=decodeError))
-            sys.exit(1)
         except ServerSelectionTimeoutError as serverTimeout:
-            self._app.logger.warning('Could not create connection to mongoDB server, is MONGO_INITDB_HOST set up correctly?: {err}'.format(err=serverTimeout))
+            self._app.logger.warning('Could not create connection to mongoDB server, is MONGO_INITDB_HOST set up correctly?: %s' % str(serverTimeout))
+            raise InvalidControllerException
+
