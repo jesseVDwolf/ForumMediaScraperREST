@@ -64,7 +64,10 @@ def config():
 
         if request.method == 'PUT':
             request_body = request.get_json()
-            response_body['config'] = flask_controller.put_config(config=request_body)
+            config = flask_controller.put_config(config=request_body)
+            if not config:
+                raise InvalidControllerException
+            response_body['config'] = config
             flask_controller.validate_controller()
 
     except json.decoder.JSONDecodeError as decodeError:

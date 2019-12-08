@@ -56,6 +56,16 @@ class FlaskController:
         'MONGO_INITDB_HOST': str,
         'MONGO_INITDB_PORT': int,
     }
+    _WEBSERVICE_BASE_CONFIG = {
+      "MONGO_INITDB_ROOT_USERNAME": "admin",
+      "MONGO_INITDB_ROOT_PASSWORD": "Noobmaster69",
+      "MONGO_INITDB_HOST": "127.0.0.1",
+      "MONGO_INITDB_PORT": 27017,
+      "ForumMediaScraper": {
+        "SCRAPER_RUN_INTERVAL": 120,
+        "SCRAPER_HEADLESS_MODE": 1
+      }
+    }
 
     def __init__(self, app: Flask):
         self._app = app
@@ -72,12 +82,9 @@ class FlaskController:
         atexit.register(lambda: self.scheduler.shutdown())
 
         try:
-            # overwrite default config with already existing environment variables
-            with open('config.json', mode='r+') as f:
-                config = json.loads(f.read())
-                config = self._update_config(config)
-                f.seek(0)
-                f.truncate()
+            # create default config with already existing environment variables
+            with open('%s\\config.json' % os.getcwd(), mode='w+') as f:
+                config = self._update_config(FlaskController._WEBSERVICE_BASE_CONFIG)
                 f.write(json.dumps(config))
 
             # validate necessary settings and services
@@ -141,7 +148,7 @@ class FlaskController:
     def get_config(self):
         try:
             if os.access('config.json', os.R_OK):
-                with open('config.json') as f:
+                with open('%s\\config.json' % os.getcwd()) as f:
                     return json.loads(f.read())
             else:
                 raise IOError('Access check on config file failed')
@@ -152,7 +159,7 @@ class FlaskController:
     def put_config(self, config: dict):
         try:
             self._validate_config(config)
-            if os.access('config.json', os.W_OK):
+            if os.access('%s\\config.json' % os.getcwd(), os.W_OK):
                 with open('config.json', 'w') as f:
                     f.write(json.dumps(config))
             else:
@@ -185,7 +192,7 @@ class FlaskController:
     def validate_controller(self):
         try:
             # read config file
-            with open('config.json') as f:
+            with open('%s\\config.json' % os.getcwd()) as f:
                 config = json.loads(f.read())
 
             #  create mongo client to interact with local mongoDB instance
