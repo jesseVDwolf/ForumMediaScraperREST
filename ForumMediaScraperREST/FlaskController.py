@@ -61,6 +61,7 @@ class FlaskController:
         'MONGO_INITDB_HOST': (str, "127.0.0.1"),
         'MONGO_INITDB_PORT': (int, 27017),
         'WEBDRIVER_EXECUTABLE_PATH': (str, 'geckodriver'),
+        'WEBDRIVER_BROWSER_EXECUTABLE_PATH': (str, None)
     }
 
     def __init__(self, app: Flask):
