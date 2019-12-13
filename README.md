@@ -9,7 +9,7 @@ This project uses the [ForumMediaScraper](https://github.com/jesseVDwolf/ForumMe
 It uses the [apscheduler](https://pypi.org/project/APScheduler/2.1.2/) to schedule the ForumMediaScraper. Run
 intervals and configuration for the scraper can all be configured via the REST interface provided by Flask.
 
-####Query
+**query**
 
 The query endpoint is used to retrieve data from the MongoDB database.
 ```http
@@ -52,7 +52,8 @@ GET /query
   ]
 }
 ```
-####Config
+
+**config**
 
 There are also a set of operations that can be done on the config of the webservice. You can retrieve data with
 GET and update the config with a PUT request. The PUT request it's response will be the new, updated config.
@@ -125,7 +126,8 @@ Use git clone to download the repository (the recurse-submodules also downloads 
 $ git clone https://github.com/jesseVDwolf/ForumMediaScraperREST.git --recurse-submodules
 ```
 
-####Local installation
+**Local installation**
+
 Install the flask application as a package using pip. Make sure you're in the same directory as the setup.py file:
 ```bash
 $ pip install .
@@ -138,7 +140,8 @@ from ForumMediaScraperREST import app
 app.run(host='0.0.0.0', port=5000)
 ```
 
-####Run from docker
+**Run from docker**
+
 To run the flask app from a docker container you have to follow the following steps. 
 **Make Sure that when using docker-compose you change the docker-compose.yml file or when using docker run 
 you change the -v to match your personal setup**
