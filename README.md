@@ -10,6 +10,7 @@ It uses the [apscheduler](https://pypi.org/project/APScheduler/2.1.2/) to schedu
 intervals and configuration for the scraper can all be configured via the REST interface provided by Flask.
 
 ####Query
+
 The query endpoint is used to retrieve data from the MongoDB database.
 ```http
 GET /query
@@ -52,6 +53,7 @@ GET /query
 }
 ```
 ####Config
+
 There are also a set of operations that can be done on the config of the webservice. You can retrieve data with
 GET and update the config with a PUT request. The PUT request it's response will be the new, updated config.
 ```http
