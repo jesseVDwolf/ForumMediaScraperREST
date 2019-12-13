@@ -106,11 +106,14 @@ class FlaskController:
             self.validate_controller()
             with open('config.json') as f:
                 config = {k: v for (k, v) in json.loads(f.read()).items() if k != 'SCRAPER_RUN_INTERVAL'}
-                for k, v in config.items():
+                config = {
+                    k: v for (k, v) in config.items() if not (
+                        k in ['WEBDRIVER_BROWSER_EXECUTABLE_PATH', "WEBDRIVER_EXECUTABLE_PATH"] and v == ""
+                    )
+                }
+                for k in config.keys():
                     if k in ['SCRAPER_HEADLESS_MODE', 'SCRAPER_CREATE_SERVICE_LOG']:
-                        config[k] = bool(v)
-                    if k in ['WEBDRIVER_BROWSER_EXECUTABLE_PATH', "WEBDRIVER_EXECUTABLE_PATH"] and v == "":
-                        continue
+                        config[k] = bool(config[k])
             scraper = ForumMediaScraper(config=config)
             scraper.run()
         except ServerSelectionTimeoutError as serverTimeout:
