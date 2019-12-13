@@ -60,8 +60,8 @@ class FlaskController:
         'MONGO_INITDB_ROOT_PASSWORD': (str, "Noobmaster69"),
         'MONGO_INITDB_HOST': (str, "127.0.0.1"),
         'MONGO_INITDB_PORT': (int, 27017),
-        'WEBDRIVER_EXECUTABLE_PATH': (str, 'geckodriver'),
-        'WEBDRIVER_BROWSER_EXECUTABLE_PATH': (str, None)
+        'WEBDRIVER_EXECUTABLE_PATH': (str, ""),
+        'WEBDRIVER_BROWSER_EXECUTABLE_PATH': (str, "")
     }
 
     def __init__(self, app: Flask):
@@ -109,6 +109,8 @@ class FlaskController:
                 for k, v in config.items():
                     if k in ['SCRAPER_HEADLESS_MODE', 'SCRAPER_CREATE_SERVICE_LOG']:
                         config[k] = bool(v)
+                    if k in ['WEBDRIVER_BROWSER_EXECUTABLE_PATH', "WEBDRIVER_EXECUTABLE_PATH"] and v == "":
+                        continue
             scraper = ForumMediaScraper(config=config)
             scraper.run()
         except ServerSelectionTimeoutError as serverTimeout:
