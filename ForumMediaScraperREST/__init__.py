@@ -35,7 +35,8 @@ def query():
                     "foreignField": "RunId",
                     "as": "Posts"
                 }
-            }
+            },
+            {"$sort": {"ProcessTime": -1}}
         ]
         # build response json body
         for run in flask_controller.mongo_database['Runs'].aggregate(pipeline=pipeline):
