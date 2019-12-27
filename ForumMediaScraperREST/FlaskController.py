@@ -216,11 +216,11 @@ class FlaskController:
 
             # get run_interval and max_scroll_settings loaded from config or stick to default
             run_interval = FlaskController._WEBSERVICE_CONFIG_SETTINGS.get('SCRAPER_RUN_INTERVAL')[1]
-            if os.environ.get('SCRAPER_RUN_INTERVAL'):
+            if config.get('SCRAPER_RUN_INTERVAL'):
                 run_interval = config.get('SCRAPER_RUN_INTERVAL')
 
             max_scroll_seconds = FlaskController._WEBSERVICE_CONFIG_SETTINGS.get('SCRAPER_MAX_SCROLL_SECONDS')[1]
-            if os.environ.get('MAX_SCROLL_SECONDS'):
+            if config.get('MAX_SCROLL_SECONDS'):
                 max_scroll_seconds = config.get('MAX_SCROLL_SECONDS')
 
             # make sure run_interval is correct

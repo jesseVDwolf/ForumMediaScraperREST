@@ -36,7 +36,7 @@ def query():
                     "as": "Posts"
                 }
             },
-            {"$sort": {"ProcessTime": -1}}
+            {"$sort": {"StartScrapeTime": -1}}
         ]
         # build response json body
         for run in flask_controller.mongo_database['Runs'].aggregate(pipeline=pipeline):
