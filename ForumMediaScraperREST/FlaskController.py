@@ -257,7 +257,7 @@ class FlaskController:
                 if not ((previous_run_time + execution_duration) <= timezone.localize(datetime.now()) <= next_run_time):
                     self._app.logger.warning('New configuration was send but MediaScraper is still running')
                     raise MediaScraperStillRunningException('Retry at {}'.format(
-                        timezone.localize((previous_run_time + execution_duration)).strftime("%Y-%m-%d %H:%M:%S"))
+                        (previous_run_time + execution_duration).strftime("%Y-%m-%d %H:%M:%S"))
                     )
 
                 # reschedule job
