@@ -4,6 +4,7 @@ import pytz
 import json
 import gridfs
 import atexit
+import logging
 from datetime import datetime, timedelta
 
 from flask import Flask
@@ -66,6 +67,7 @@ class FlaskController:
 
     def __init__(self, app: Flask):
         self._app = app
+        self._app.logger.setLevel(logging.INFO)
 
         # database settings
         self._mongo_client = MongoClient
@@ -255,7 +257,7 @@ class FlaskController:
                 if not ((previous_run_time + execution_duration) <= timezone.localize(datetime.now()) <= next_run_time):
                     self._app.logger.warning('New configuration was send but MediaScraper is still running')
                     raise MediaScraperStillRunningException('Retry at {}'.format(
-                        timezone.localize((datetime.utcnow() + execution_duration)).strftime("%Y-%m-%d %H:%M:%S"))
+                        timezone.localize((previous_run_time + execution_duration)).strftime("%Y-%m-%d %H:%M:%S"))
                     )
 
                 # reschedule job
