@@ -250,7 +250,7 @@ class FlaskController:
                 # get important timestamps for is_running check using Europe/Berlin timezone
                 timezone = pytz.timezone('Europe/Berlin')
                 execution_duration = timedelta(seconds=(max_scroll_seconds + FlaskController._SCRAPER_SHUTDOWN_BUFFER))
-                next_run_time = self.forum_scraper_schedule.next_run_time - timedelta(seconds=2)  # small buffer
+                next_run_time = self.forum_scraper_schedule.next_run_time.astimezone(timezone) - timedelta(seconds=2)
                 previous_run_time = next_run_time - timedelta(seconds=run_interval)
 
                 # check if request comes in in a time frame where we're sure no job is running
