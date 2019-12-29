@@ -9,7 +9,8 @@ from pymongo.errors import AutoReconnect
 from .FlaskController import (
     FlaskController,
     MediaScraperStillRunningException,
-    InvalidControllerException
+    InvalidControllerException,
+    InvalidConfigException
 )
 
 app = Flask(__name__)
@@ -57,18 +58,15 @@ def query():
 @app.route('/config', methods=['GET', 'PUT'])
 def config():
     status = 200
-    response_body = {'success': True, 'config': {}}
+    response_body = {'success': True}
     try:
         if request.method == 'GET':
             response_body['config'] = flask_controller.get_config()
 
         if request.method == 'PUT':
             request_body = request.get_json()
-            config = flask_controller.put_config(config=request_body)
-            if not config:
-                raise InvalidControllerException
-            response_body['config'] = config
-            flask_controller.validate_controller()
+            conf = flask_controller.update_internal_conf(config=request_body)
+            response_body['config'] = conf
 
     except json.decoder.JSONDecodeError as decodeError:
         response_body.update({
@@ -88,7 +86,7 @@ def config():
             }
         })
         status = 409
-    except InvalidControllerException:
+    except (InvalidControllerException, InvalidConfigException):
         response_body.update({
             'success': False,
             'error': {
