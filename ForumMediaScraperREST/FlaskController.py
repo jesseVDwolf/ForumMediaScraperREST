@@ -237,8 +237,9 @@ class FlaskController:
                 execution_duration = timedelta(seconds=(old.get('SCRAPER_MAX_SCROLL_SECONDS') + FlaskController.SCRAPER_SHUTDOWN_BUFFER))
                 next_run_time = self.forum_scraper_job.next_run_time.astimezone(self.timezone) - timedelta(seconds=2)
                 previous_run_time = next_run_time - timedelta(seconds=old.get('SCRAPER_RUN_INTERVAL'))
+                now = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(self.timezone)
 
-                if not ((previous_run_time + execution_duration) <= self.timezone.localize(datetime.now()) <= next_run_time):
+                if not ((previous_run_time + execution_duration) <= now <= next_run_time):
                     self._app.logger.warning('New configuration was send but MediaScraper is still running')
                     new.update({'SCRAPER_RUN_INTERVAL': old['SCRAPER_RUN_INTERVAL']})
                     f.seek(0)
