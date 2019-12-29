@@ -27,6 +27,7 @@ def query():
     try:
         # create mongodb aggregation pipeline
         pipeline = [
+            {"$sort": {"StartScrapeTime": -1}},
             {"$skip": int(offset)},
             {"$limit": int(limit)},
             {"$lookup":
@@ -36,8 +37,7 @@ def query():
                     "foreignField": "RunId",
                     "as": "Posts"
                 }
-            },
-            {"$sort": {"StartScrapeTime": -1}}
+            }
         ]
         # build response json body
         for run in flask_controller.mongo_database['Runs'].aggregate(pipeline=pipeline):
