@@ -241,7 +241,10 @@ class FlaskController:
 
                 if not ((previous_run_time + execution_duration) <= now <= next_run_time):
                     self._app.logger.warning('New configuration was send but MediaScraper is still running')
-                    new.update({'SCRAPER_RUN_INTERVAL': old['SCRAPER_RUN_INTERVAL']})
+                    new.update({
+                        'SCRAPER_RUN_INTERVAL': old['SCRAPER_RUN_INTERVAL'],
+                        'SCRAPER_MAX_SCROLL_SECONDS': old['SCRAPER_MAX_SCROLL_SECONDS']
+                    })
                     f.seek(0)
                     f.truncate()
                     f.write(json.dumps(new))
