@@ -1,5 +1,4 @@
 import os
-import pytz
 import json
 from flask import Flask
 from gridfs import GridFS
