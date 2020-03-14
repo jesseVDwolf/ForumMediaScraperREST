@@ -23,7 +23,6 @@ class FlaskController:
 
     def __init__(self, app: Flask, config: ScraperConfig):
         self.logger = app.logger
-        self.timezone = pytz.timezone('Europe/Berlin')
 
         self.mongo_client = MongoClient(**config.get_mongo_config())
         self.mongo_database = self.mongo_client['ForumMediaData']
