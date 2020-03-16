@@ -29,7 +29,7 @@ class ContainerManager:
         self._client = docker.from_env()
         if not [image for image in self._client.images.list() if _SCRAPER_CONTAINER_IMAGE in image.attrs['RepoTags']]:
             self._client.images.build(
-                path=os.path.join(os.getcwd(), 'ForumMediaScraper'),
+                path=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'ForumMediaScraper'),
                 tag=_SCRAPER_CONTAINER_IMAGE
             )
 
