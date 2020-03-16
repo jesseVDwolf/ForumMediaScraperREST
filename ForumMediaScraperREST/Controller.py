@@ -45,7 +45,8 @@ class ContainerManager:
             name=_SCRAPER_CONTAINER_NAME,
             network='{parent}_{netname}'.format(parent=path.name.lower(), netname=_SCRAPER_NETWORK_NAME),
             environment=config,
-            detach=True
+            detach=True,
+            command='/usr/local/bin/python /scraper/entrypoint.py'
         )
 
 

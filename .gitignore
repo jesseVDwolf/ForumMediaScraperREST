@@ -5,3 +5,4 @@ test.*
 __pycache__/
 *.sh
 .env
+*.ipynb
