@@ -79,11 +79,11 @@ class FlaskController:
         self._scheduler.start()
         atexit.register(lambda: self._scheduler.shutdown())
 
-        self._scraper_job = self._scheduler.add_job(
+        """self._scraper_job = self._scheduler.add_job(
             func=self._container_manager.run,
             trigger="interval",
             seconds=config['SCRAPER_RUN_INTERVAL']
-        )
+        )"""
 
     def load_config(self):
         config = {}
