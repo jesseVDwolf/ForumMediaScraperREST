@@ -3,7 +3,7 @@ services:
   mongo:
     image: mongo:latest
     networks:
-    - forum-media-data
+    - forum-media-net
     ports:
       - 27017:27017
     environment:
@@ -14,7 +14,7 @@ services:
   mongo-express:
     image: mongo-express:latest
     networks:
-      - forum-media-data
+      - forum-media-net
     ports:
       - 8081:8081
     environment:
@@ -25,11 +25,19 @@ services:
       - mongo
 
   flask:
-    image: jvanderwolf/meinheld-gunicorn-flask:python3.6
+    build:
+      context: .
+      dockerfile: Dockerfile
     networks:
-      - forum-media-data
+      - forum-media-net
     ports:
       - 5000:80
+    environment:
+      MONGO_INITDB_HOST: mongo
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 networks:
-  forum-media-data:
+  forum-media-net:

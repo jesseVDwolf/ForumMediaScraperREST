@@ -51,8 +51,8 @@ def query():
             run = controller.convert_objects(run)
             body['documents'].append(run)
     except AutoReconnect as MongoError:
-        app.logger.warning('Error reconnecting to the mongo database: {err}'.format(err=MongoError))
-        body.update({'success': False, 'error': {'type': 'pymongo.errors.AutoReconnect', 'message': MongoError}})
+        app.logger.warning('Error reconnecting to the mongo database: {err}'.format(err=str(MongoError)))
+        body.update({'success': False, 'error': {'type': 'pymongo.errors.AutoReconnect', 'message': str(MongoError)}})
         status = 500
     return Response(response=json.dumps(body), status=status, content_type='application/json')
 
