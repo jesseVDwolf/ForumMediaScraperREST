@@ -14,7 +14,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 _SCRAPER_CONTAINER_IMAGE = 'jvanderwolf/forum-media-scraper:0.1'
 _SCRAPER_CONTAINER_NAME = 'forum-scraper'
 _SCRAPER_NETWORK_NAME = 'forum-media-net'
-_SCRAPER_DOCKERFILE_PATH = '/app/app/ForumMediaScraperREST/ForumMediaScraper'
 
 _WEBSERVICE_SETTINGS = {
     'SCRAPER_SHUTDOWN_BUFFER': 20,
@@ -30,7 +29,7 @@ class ContainerManager:
         self._client = docker.from_env()
         if not [image for image in self._client.images.list() if _SCRAPER_CONTAINER_IMAGE in image.attrs['RepoTags']]:
             self._client.images.build(
-                path=_SCRAPER_DOCKERFILE_PATH,
+                path=os.getcwd(),
                 tag=_SCRAPER_CONTAINER_IMAGE
             )
 
