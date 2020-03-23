@@ -4,7 +4,8 @@ COPY ForumMediaScraper/Dockerfile .
 
 RUN apt-get update && \
     apt-get install -y git && \
-    git clone --recurse-submodules https://github.com/jesseVDwolf/ForumMediaScraperREST.git app
+    git clone --recurse-submodules https://github.com/jesseVDwolf/ForumMediaScraperREST.git app && \
+    (cd app; /bin/bash -c "pip install ."; cd ForumMediaScraper; /bin/bash -c "pip install .")
 
 RUN apt-get update && \
     apt-get -y install apt-transport-https \

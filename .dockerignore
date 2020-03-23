@@ -1,1 +1,5 @@
-*
+#ignore everything
+**
+
+# allow dockerfile from ForumMediaScraper
+!/ForumMediaScraper/Dockerfile
